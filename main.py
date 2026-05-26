@@ -8,18 +8,18 @@ import matplotlib.pyplot as plt
 Nx = 200
 Ny = 60
 
-u_char = 0.01
-Re = 10
+v_char = 0.01 # характеристична швидкість
+Re = 10 # задане числом Рейнольдса
 
-L = Ny - 2
+L = Ny - 2 # верхній і нижній ряд — це стінки
 
 # viscosity from Reynolds number
-nu = u_char * L / Re
+viscosity = v_char * L / Re
 
 # relaxation time
-tau = 3.0 * nu + 0.5
+tau = 3.0 * viscosity + 0.5
 
-print("nu  =", nu)
+print("viscosity  =", viscosity)
 print("tau =", tau)
 
 steps = 5000
@@ -32,6 +32,8 @@ force_x = 1e-6
 # D2Q9 LATTICE
 # =========================================================
 
+
+# allowed directions
 e = np.array([
     [ 0, 0],
     [ 1, 0],

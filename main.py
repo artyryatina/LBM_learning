@@ -225,17 +225,18 @@ for step in range(steps):
 
         speed = np.sqrt(ux ** 2 + uy ** 2)
 
-        # нормалізація в 0-255
-        img = cv2.normalize(speed, None, 0, 255, cv2.NORM_MINMAX)
+        # фіксована шкала кольорів
+        img = speed / (2.0 * v_char)
+        img = np.clip(img, 0.0, 1.0)
 
-        img = img.astype(np.uint8)
+        img = (255 * img).astype(np.uint8)
 
-        # кольори
         img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
 
+        cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
+        cv2.resizeWindow("LBM", 1200, 400)
         cv2.imshow("LBM", img)
 
-        # 1 мс
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 cv2.destroyAllWindows()

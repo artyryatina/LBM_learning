@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import cv2
 
 # =========================================================
 # PARAMETERS
@@ -9,7 +10,7 @@ Nx = 200
 Ny = 60
 
 v_char = 0.01 # характеристична швидкість
-Re = 20 # задане числом Рейнольдса
+Re = 3 # задане числом Рейнольдса
 
 L = Ny - 2 # верхній і нижній ряд — це стінки
 
@@ -22,8 +23,8 @@ tau = 3.0 * viscosity + 0.5
 print("viscosity  =", viscosity)
 print("tau =", tau)
 
-steps = 5000
-plot_every = 200
+steps = 50000
+plot_every = 1
 
 # =========================================================
 # D2Q9 LATTICE
@@ -112,7 +113,7 @@ solid[circle] = True
 # MAIN LOOP
 # =========================================================
 
-plt.ion()
+
 
 for step in range(steps):
 
@@ -124,6 +125,8 @@ for step in range(steps):
 
     ux = np.sum(f * e[:,0], axis=2) / rho
     uy = np.sum(f * e[:,1], axis=2) / rho
+    ux[solid] = 0
+    uy[solid] = 0
 
     # -----------------------------------------------------
     # EQUILIBRIUM
@@ -209,11 +212,10 @@ for step in range(steps):
     # BOUNCE BACK
     # -----------------------------------------------------
 
+    f_old = f.copy()
+
     for i in range(9):
-
-        bounced = f[:,:,i][solid]
-
-        f[:,:,opp[i]][solid] = bounced
+        f[:, :, opp[i]][solid] = f_old[:, :, i][solid]
 
     # -----------------------------------------------------
     # VISUALIZATION
@@ -221,18 +223,19 @@ for step in range(steps):
 
     if step % plot_every == 0:
 
-        speed = np.sqrt(ux**2 + uy**2)
+        speed = np.sqrt(ux ** 2 + uy ** 2)
 
-        plt.clf()
+        # нормалізація в 0-255
+        img = cv2.normalize(speed, None, 0, 255, cv2.NORM_MINMAX)
 
-        plt.imshow(speed, origin="lower")
-        plt.colorbar()
+        img = img.astype(np.uint8)
 
-        plt.title(
-            f"step={step}  tau={tau:.3f}  Re={Re}"
-        )
+        # кольори
+        img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
 
-        plt.pause(0.01)
+        cv2.imshow("LBM", img)
 
-plt.ioff()
-plt.show()
+        # 1 мс
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+cv2.destroyAllWindows()

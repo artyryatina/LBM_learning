@@ -9,8 +9,8 @@ import cv2
 Nx = 200
 Ny = 60
 
-v_char = 0.01 # характеристична швидкість
-Re = 3 # задане числом Рейнольдса
+v_char = 0.05 # характеристична швидкість
+Re = 150 # задане числом Рейнольдса
 
 L = Ny - 2 # верхній і нижній ряд — це стінки
 
@@ -164,6 +164,8 @@ for step in range(steps):
             e[i,1], axis=0
         )
 
+    if step % 250 == 0:
+        print("after STREAMING", np.mean(np.sum(f, axis=2)))
     # =====================================================
     # ZOU-HE INLET (left boundary)
     # =====================================================
@@ -200,14 +202,29 @@ for step in range(steps):
             + 0.5 * (f2 - f4)
             + (1 / 6) * rho_in * u_in
     )
-
+    if step % 250 == 0:
+        print("after ZOU-HE INLET (left boundary)", np.mean(np.sum(f, axis=2)))
     # =====================================================
     # OUTLET (right boundary)
     # =====================================================
 
-    for i in range(9):
-        f[1:-1, -1, i] = f[1:-1, -2, i]
+    rho_out = 1.0
 
+    f0 = f[1:-1, -1, 0]
+    f1 = f[1:-1, -1, 1]
+    f2 = f[1:-1, -1, 2]
+    f4 = f[1:-1, -1, 4]
+    f5 = f[1:-1, -1, 5]
+    f8 = f[1:-1, -1, 8]
+
+    ux_out = -1 + (f0 + f2 + f4 + 2 * (f1 + f5 + f8)) / rho_out
+
+    f[1:-1, -1, 3] = f1 - (2 / 3) * rho_out * ux_out
+    f[1:-1, -1, 6] = f8 - 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
+    f[1:-1, -1, 7] = f5 + 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
+
+    if step % 250 == 0:
+        print("after OUTLET (right boundary) ", np.mean(np.sum(f, axis=2)))
     # -----------------------------------------------------
     # BOUNCE BACK
     # -----------------------------------------------------
@@ -217,21 +234,27 @@ for step in range(steps):
     for i in range(9):
         f[:, :, opp[i]][solid] = f_old[:, :, i][solid]
 
-    # -----------------------------------------------------
-    # VISUALIZATION
-    # -----------------------------------------------------
+    if step % 250 == 0:
+        print("after BC", np.mean(np.sum(f, axis=2)))
+        # -----------------------------------------------------
+        # VISUALIZATION
+        # -----------------------------------------------------
 
     if step % plot_every == 0:
 
-        speed = np.sqrt(ux ** 2 + uy ** 2)
+        # вихорність: dUy/dx - dUx/dy
+        curl = np.gradient(uy, axis=1) - np.gradient(ux, axis=0)
 
-        # фіксована шкала кольорів
-        img = speed / (2.0 * v_char)
+        curl[solid] = 0
+
+        limit = 0.02
+
+        img = (curl + limit) / (2 * limit)
         img = np.clip(img, 0.0, 1.0)
 
         img = (255 * img).astype(np.uint8)
 
-        img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+        img = cv2.applyColorMap(img, cv2.COLORMAP_VIRIDIS)
 
         cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("LBM", 1200, 400)
@@ -239,4 +262,26 @@ for step in range(steps):
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+
+    # if step % plot_every == 0:
+    #
+    #     speed = np.sqrt(ux ** 2 + uy ** 2)
+    #
+    #     # фіксована шкала кольорів
+    #     img = speed / (2.0 * v_char)
+    #     img = np.clip(img, 0.0, 1.0)
+    #
+    #     img = (255 * img).astype(np.uint8)
+    #
+    #     img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+    #
+    #     cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
+    #     cv2.resizeWindow("LBM", 1200, 400)
+    #     cv2.imshow("LBM", img)
+    #
+    #     if cv2.waitKey(1) & 0xFF == ord('q'):
+    #         break
+    if step % 250 == 0:
+        rho_now = np.sum(f, axis=2)
+        print("в кінці", step,"степу", np.mean(rho_now), np.min(rho_now), np.max(rho_now))
 cv2.destroyAllWindows()

@@ -112,9 +112,19 @@ solid[circle] = True
 # =========================================================
 # MAIN LOOP
 # =========================================================
-
 cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
 cv2.resizeWindow("LBM", 1200, 400)
+
+mouse_x = 0
+mouse_y = 0
+
+def mouse_callback(event, x, y, flags, param):
+    global mouse_x, mouse_y
+    if event == cv2.EVENT_MOUSEMOVE:
+        mouse_x = x
+        mouse_y = y
+
+cv2.setMouseCallback("LBM", mouse_callback)
 
 for step in range(steps):
 
@@ -251,12 +261,30 @@ for step in range(steps):
     img = (255 * img).astype(np.uint8)
     img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
 
-    cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("LBM", 1200, 400)
+    grid_x = int(mouse_x - 1)
+    grid_y = int(mouse_y - 1)
+
+    U_mouse = speed[grid_y, grid_x]
+
+    text = f"x={grid_x}, y={grid_y}, u={U_mouse:.3f}"
+
+    cv2.putText(
+        img,
+        text,
+        (0, Ny-2),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.4,
+        (255, 255, 255),
+        1
+    )
+
     cv2.imshow("LBM", img)
 
     # 1 мс
     if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+    if cv2.getWindowProperty("LBM", cv2.WND_PROP_VISIBLE) < 1:
         break
 
     if step % 250 == 0:

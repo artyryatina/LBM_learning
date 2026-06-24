@@ -9,8 +9,8 @@ import cv2
 Nx = 200
 Ny = 60
 
-v_char = 0.05 # характеристична швидкість
-Re = 150 # задане числом Рейнольдса
+v_char = 0.05# характеристична швидкість
+Re = 70 # задане числом Рейнольдса
 
 L = Ny - 2 # верхній і нижній ряд — це стінки
 
@@ -113,7 +113,8 @@ solid[circle] = True
 # MAIN LOOP
 # =========================================================
 
-
+cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
+cv2.resizeWindow("LBM", 1200, 400)
 
 for step in range(steps):
 
@@ -236,51 +237,28 @@ for step in range(steps):
 
     if step % 250 == 0:
         print("after BC", np.mean(np.sum(f, axis=2)))
-        # -----------------------------------------------------
-        # VISUALIZATION
-        # -----------------------------------------------------
 
-    if step % plot_every == 0:
 
-        # вихорність: dUy/dx - dUx/dy
-        curl = np.gradient(uy, axis=1) - np.gradient(ux, axis=0)
+    # -----------------------------------------------------
+    # VISUALIZATION
+    # -----------------------------------------------------
 
-        curl[solid] = 0
+    speed = np.sqrt(ux ** 2 + uy ** 2)
+    speed[solid] = 0
 
-        limit = 0.02
+    img = speed / (2.0 * v_char)
+    img = np.clip(img, 0, 1)
+    img = (255 * img).astype(np.uint8)
+    img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
 
-        img = (curl + limit) / (2 * limit)
-        img = np.clip(img, 0.0, 1.0)
+    cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("LBM", 1200, 400)
+    cv2.imshow("LBM", img)
 
-        img = (255 * img).astype(np.uint8)
+    # 1 мс
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-        img = cv2.applyColorMap(img, cv2.COLORMAP_VIRIDIS)
-
-        cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("LBM", 1200, 400)
-        cv2.imshow("LBM", img)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    # if step % plot_every == 0:
-    #
-    #     speed = np.sqrt(ux ** 2 + uy ** 2)
-    #
-    #     # фіксована шкала кольорів
-    #     img = speed / (2.0 * v_char)
-    #     img = np.clip(img, 0.0, 1.0)
-    #
-    #     img = (255 * img).astype(np.uint8)
-    #
-    #     img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
-    #
-    #     cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
-    #     cv2.resizeWindow("LBM", 1200, 400)
-    #     cv2.imshow("LBM", img)
-    #
-    #     if cv2.waitKey(1) & 0xFF == ord('q'):
-    #         break
     if step % 250 == 0:
         rho_now = np.sum(f, axis=2)
         print("в кінці", step,"степу", np.mean(rho_now), np.min(rho_now), np.max(rho_now))

@@ -6,11 +6,11 @@ import cv2
 # PARAMETERS
 # =========================================================
 
-Nx = 800
-Ny = 180
+Nx = 200
+Ny = 60
 
-v_char = 0.1# характеристична швидкість
-Re = 170 # задане числом Рейнольдса
+v_char = 0.01 # характеристична швидкість
+Re = 7 # задане числом Рейнольдса
 
 L = Ny - 2 # верхній і нижній ряд — це стінки
 
@@ -25,6 +25,7 @@ print("tau =", tau)
 
 steps = 3000
 plot_every = 1
+ramp_steps = 200
 
 # =========================================================
 # D2Q9 LATTICE
@@ -98,7 +99,7 @@ solid[-1,:] = True
 cx = Nx // 2
 cy = Ny // 2
 
-radius = 10
+radius = 8
 
 Y, X = np.ogrid[:Ny, :Nx]
 
@@ -182,6 +183,7 @@ for step in range(steps):
     # =====================================================
 
     u_in = v_char
+    # u_in = v_char * min(1.0, step / ramp_steps)
 
     # known populations
     f0 = f[1:-1, 0, 0]
@@ -215,24 +217,25 @@ for step in range(steps):
     )
     # if step % 250 == 0:
     #     print("after ZOU-HE INLET (left boundary)", np.mean(np.sum(f, axis=2)))
+
     # =====================================================
     # OUTLET (right boundary)
     # =====================================================
 
-    # rho_out = 1.0
-    #
-    # f0 = f[1:-1, -1, 0]
-    # f1 = f[1:-1, -1, 1]
-    # f2 = f[1:-1, -1, 2]
-    # f4 = f[1:-1, -1, 4]
-    # f5 = f[1:-1, -1, 5]
-    # f8 = f[1:-1, -1, 8]
-    #
-    # ux_out = -1 + (f0 + f2 + f4 + 2 * (f1 + f5 + f8)) / rho_out
-    #
-    # f[1:-1, -1, 3] = f1 - (2 / 3) * rho_out * ux_out
-    # f[1:-1, -1, 6] = f8 - 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
-    # f[1:-1, -1, 7] = f5 + 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
+    rho_out = 1.0
+
+    f0 = f[1:-1, -1, 0]
+    f1 = f[1:-1, -1, 1]
+    f2 = f[1:-1, -1, 2]
+    f4 = f[1:-1, -1, 4]
+    f5 = f[1:-1, -1, 5]
+    f8 = f[1:-1, -1, 8]
+
+    ux_out = -1 + (f0 + f2 + f4 + 2 * (f1 + f5 + f8)) / rho_out
+
+    f[1:-1, -1, 3] = f1 - (2 / 3) * rho_out * ux_out
+    f[1:-1, -1, 6] = f8 - 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
+    f[1:-1, -1, 7] = f5 + 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
 
     # for i in range(9):
     #     f[1:-1, -1, i] = f[1:-1, -2, i]
@@ -241,59 +244,59 @@ for step in range(steps):
     # OUTLET (right boundary) - Anti-bounce-back pressure
     # =====================================================
 
-    rho = np.sum(f, axis=2)
-
-    ux = np.sum(f * e[:, 0], axis=2) / rho
-    uy = np.sum(f * e[:, 1], axis=2) / rho
-    ux[solid] = 0
-    uy[solid] = 0
-
-    rho_out = 1.0
-
-    cs2 = 1.0 / 3.0
-    cs4 = cs2 ** 2
-
-    # оцінка швидкості на межі через екстраполяцію зсередини
-    ux_w = ux[1:-1, -2] + 0.5 * (ux[1:-1, -2] - ux[1:-1, -3])
-    uy_w = uy[1:-1, -2] + 0.5 * (uy[1:-1, -2] - uy[1:-1, -3])
-
-    u2_w = ux_w ** 2 + uy_w ** 2
-
-    # unknown populations at right outlet: f3, f6, f7
-    # their opposite known populations: f1, f8, f5
-
-    # f3 opposite f1
-    cu = e[3, 0] * ux_w + e[3, 1] * uy_w
-    f[1:-1, -1, 3] = (
-            -f[1:-1, -1, 1]
-            + 2 * w[3] * rho_out * (
-                    1
-                    + (cu ** 2) / (2 * cs4)
-                    - u2_w / (2 * cs2)
-            )
-    )
-
-    # f6 opposite f8
-    cu = e[6, 0] * ux_w + e[6, 1] * uy_w
-    f[1:-1, -1, 6] = (
-            -f[1:-1, -1, 8]
-            + 2 * w[6] * rho_out * (
-                    1
-                    + (cu ** 2) / (2 * cs4)
-                    - u2_w / (2 * cs2)
-            )
-    )
-
-    # f7 opposite f5
-    cu = e[7, 0] * ux_w + e[7, 1] * uy_w
-    f[1:-1, -1, 7] = (
-            -f[1:-1, -1, 5]
-            + 2 * w[7] * rho_out * (
-                    1
-                    + (cu ** 2) / (2 * cs4)
-                    - u2_w / (2 * cs2)
-            )
-    )
+    # rho = np.sum(f, axis=2)
+    #
+    # ux = np.sum(f * e[:, 0], axis=2) / rho
+    # uy = np.sum(f * e[:, 1], axis=2) / rho
+    # ux[solid] = 0
+    # uy[solid] = 0
+    #
+    # rho_out = 1.0
+    #
+    # cs2 = 1.0 / 3.0
+    # cs4 = cs2 ** 2
+    #
+    # # оцінка швидкості на межі через екстраполяцію зсередини
+    # ux_w = ux[1:-1, -2] + 0.5 * (ux[1:-1, -2] - ux[1:-1, -3])
+    # uy_w = uy[1:-1, -2] + 0.5 * (uy[1:-1, -2] - uy[1:-1, -3])
+    #
+    # u2_w = ux_w ** 2 + uy_w ** 2
+    #
+    # # unknown populations at right outlet: f3, f6, f7
+    # # their opposite known populations: f1, f8, f5
+    #
+    # # f3 opposite f1
+    # cu = e[3, 0] * ux_w + e[3, 1] * uy_w
+    # f[1:-1, -1, 3] = (
+    #         -f[1:-1, -1, 1]
+    #         + 2 * w[3] * rho_out * (
+    #                 1
+    #                 + (cu ** 2) / (2 * cs4)
+    #                 - u2_w / (2 * cs2)
+    #         )
+    # )
+    #
+    # # f6 opposite f8
+    # cu = e[6, 0] * ux_w + e[6, 1] * uy_w
+    # f[1:-1, -1, 6] = (
+    #         -f[1:-1, -1, 8]
+    #         + 2 * w[6] * rho_out * (
+    #                 1
+    #                 + (cu ** 2) / (2 * cs4)
+    #                 - u2_w / (2 * cs2)
+    #         )
+    # )
+    #
+    # # f7 opposite f5
+    # cu = e[7, 0] * ux_w + e[7, 1] * uy_w
+    # f[1:-1, -1, 7] = (
+    #         -f[1:-1, -1, 5]
+    #         + 2 * w[7] * rho_out * (
+    #                 1
+    #                 + (cu ** 2) / (2 * cs4)
+    #                 - u2_w / (2 * cs2)
+    #         )
+    # )
 
     # if step % 250 == 0:
     #     print("after OUTLET (right boundary) ", np.mean(np.sum(f, axis=2)))

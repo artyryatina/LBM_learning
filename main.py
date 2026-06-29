@@ -23,7 +23,7 @@ tau = 3.0 * viscosity + 0.5
 print("viscosity  =", viscosity)
 print("tau =", tau)
 
-steps = 3000
+steps = 30000
 plot_every = 1
 ramp_steps = 200
 
@@ -55,13 +55,44 @@ w = np.array([
 opp = np.array([0,3,4,1,2,7,8,5,6])
 
 # =========================================================
+# WALLS
+# =========================================================
+
+solid = np.zeros((Ny, Nx), dtype=bool)
+
+solid[0,:] = True
+solid[-1,:] = True
+
+# =====================================================
+# circle obstacle
+# =====================================================
+
+cx = Nx // 2
+cy = Ny // 2
+
+radius = 2
+
+Y, X = np.ogrid[:Ny, :Nx]
+
+circle = (
+    (X - cx)**2 +
+    (Y - cy)**2
+) <= radius**2
+
+solid[circle] = True
+
+
+# =========================================================
 # INITIAL MACROSCOPIC FIELDS
 # =========================================================
 
 rho = np.ones((Ny, Nx))
 
-ux = np.zeros((Ny, Nx))
+ux = np.full((Ny, Nx), v_char)
 uy = np.zeros((Ny, Nx))
+
+ux[solid] = 0.0
+uy[solid] = 0.0
 
 # =========================================================
 # INITIAL DISTRIBUTION
@@ -82,33 +113,6 @@ for i in range(9):
         + 4.5*eu**2
         - 1.5*u2
     )
-
-# =========================================================
-# WALLS
-# =========================================================
-
-solid = np.zeros((Ny, Nx), dtype=bool)
-
-solid[0,:] = True
-solid[-1,:] = True
-
-# =====================================================
-# circle obstacle
-# =====================================================
-
-cx = Nx // 2
-cy = Ny // 2
-
-radius = 8
-
-Y, X = np.ogrid[:Ny, :Nx]
-
-circle = (
-    (X - cx)**2 +
-    (Y - cy)**2
-) <= radius**2
-
-solid[circle] = True
 
 # =========================================================
 # MAIN LOOP
@@ -222,23 +226,23 @@ for step in range(steps):
     # OUTLET (right boundary)
     # =====================================================
 
-    rho_out = 1.0
+    # rho_out = 1.0
+    #
+    # f0 = f[1:-1, -1, 0]
+    # f1 = f[1:-1, -1, 1]
+    # f2 = f[1:-1, -1, 2]
+    # f4 = f[1:-1, -1, 4]
+    # f5 = f[1:-1, -1, 5]
+    # f8 = f[1:-1, -1, 8]
+    #
+    # ux_out = -1 + (f0 + f2 + f4 + 2 * (f1 + f5 + f8)) / rho_out
+    #
+    # f[1:-1, -1, 3] = f1 - (2 / 3) * rho_out * ux_out
+    # f[1:-1, -1, 6] = f8 - 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
+    # f[1:-1, -1, 7] = f5 + 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
 
-    f0 = f[1:-1, -1, 0]
-    f1 = f[1:-1, -1, 1]
-    f2 = f[1:-1, -1, 2]
-    f4 = f[1:-1, -1, 4]
-    f5 = f[1:-1, -1, 5]
-    f8 = f[1:-1, -1, 8]
-
-    ux_out = -1 + (f0 + f2 + f4 + 2 * (f1 + f5 + f8)) / rho_out
-
-    f[1:-1, -1, 3] = f1 - (2 / 3) * rho_out * ux_out
-    f[1:-1, -1, 6] = f8 - 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
-    f[1:-1, -1, 7] = f5 + 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
-
-    # for i in range(9):
-    #     f[1:-1, -1, i] = f[1:-1, -2, i]
+    for i in range(9):
+        f[1:-1, -1, i] = f[1:-1, -2, i]
 
     # =====================================================
     # OUTLET (right boundary) - Anti-bounce-back pressure
@@ -316,37 +320,10 @@ for step in range(steps):
     # VISUALIZATION
     # -----------------------------------------------------
 
-    speed = np.sqrt(ux ** 2 + uy ** 2)
-    speed[solid] = 0
-
-    img = speed / (2.0 * v_char)
-    img = np.clip(img, 0, 1)
-    img = (255 * img).astype(np.uint8)
-    img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
-
-    grid_x = int(mouse_x - 1)
-    grid_y = int(mouse_y - 1)
-
-    U_mouse = speed[grid_y, grid_x]
-
-    text = f"x={grid_x}, y={grid_y}, u={U_mouse:.3f}"
-
-    cv2.putText(
-        img,
-        text,
-        (0, Ny - 2),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.4,
-        (255, 255, 255),
-        1
-    )
-
-    cv2.imshow("LBM", img)
-
-    # field = rho.copy()
-    # field[solid] = 1.0
+    # speed = np.sqrt(ux ** 2 + uy ** 2)
+    # speed[solid] = 0
     #
-    # img = (field - 0.95) / (1.10 - 0.95)
+    # img = speed / (2.0 * v_char)
     # img = np.clip(img, 0, 1)
     # img = (255 * img).astype(np.uint8)
     # img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
@@ -354,9 +331,9 @@ for step in range(steps):
     # grid_x = int(mouse_x - 1)
     # grid_y = int(mouse_y - 1)
     #
-    # rho_mouse = rho[grid_y, grid_x]
+    # U_mouse = speed[grid_y, grid_x]
     #
-    # text = f"x={grid_x}, y={grid_y}, rho={rho_mouse:.4f}"
+    # text = f"x={grid_x}, y={grid_y}, u={U_mouse:.3f}"
     #
     # cv2.putText(
     #     img,
@@ -369,6 +346,33 @@ for step in range(steps):
     # )
     #
     # cv2.imshow("LBM", img)
+
+    field = rho.copy()
+    field[solid] = 1.0
+
+    img = (field - 0.95) / (1.10 - 0.95)
+    img = np.clip(img, 0, 1)
+    img = (255 * img).astype(np.uint8)
+    img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+
+    grid_x = int(mouse_x - 1)
+    grid_y = int(mouse_y - 1)
+
+    rho_mouse = rho[grid_y, grid_x]
+
+    text = f"x={grid_x}, y={grid_y}, rho={rho_mouse:.4f}"
+
+    cv2.putText(
+        img,
+        text,
+        (0, Ny - 2),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.4,
+        (255, 255, 255),
+        1
+    )
+
+    cv2.imshow("LBM", img)
 
     # 1 мс
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -383,8 +387,8 @@ for step in range(steps):
             step,
             "rho mean/min/max",
             np.mean(rho_now), np.min(rho_now), np.max(rho_now),
-            "ux min/max",
-            np.min(ux), np.max(ux),
+            "ux mean/min/max",
+            np.mean(ux), np.min(ux), np.max(ux),
             "rho right mean",
             np.mean(rho_now[1:-1, -2]),
             "ux right mean/max",

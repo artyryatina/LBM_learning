@@ -170,6 +170,45 @@ class LBM:
             )
         self.f += -(self.f - feq) / self.tau
 
+    def collide_fluid_only(self):
+        feq = np.zeros_like(self.f)
+
+        u2 = self.ux ** 2 + self.uy ** 2
+
+        for i in range(9):
+            eu = self.e[i, 0] * self.ux + self.e[i, 1] * self.uy
+
+            feq[:, :, i] = self.w[i] * self.rho * (
+                    1
+                    + 3 * eu
+                    + 4.5 * eu ** 2
+                    - 1.5 * u2
+            )
+
+        mask = ~self.solid
+
+        self.f[mask, :] += -(self.f[mask, :] - feq[mask, :]) / self.tau
+
+    def collide_fluid_skip_right(self):
+        feq = np.zeros_like(self.f)
+
+        u2 = self.ux ** 2 + self.uy ** 2
+
+        for i in range(9):
+            eu = self.e[i, 0] * self.ux + self.e[i, 1] * self.uy
+
+            feq[:, :, i] = self.w[i] * self.rho * (
+                    1
+                    + 3 * eu
+                    + 4.5 * eu ** 2
+                    - 1.5 * u2
+            )
+
+        mask = ~self.solid
+        mask[:, -1] = False  # не чіпаємо CBC outlet column
+
+        self.f[mask, :] += -(self.f[mask, :] - feq[mask, :]) / self.tau
+
     def stream(self):
         for i in range(9):
             self.f[:, :, i] = np.roll(
@@ -325,6 +364,139 @@ class LBM:
 
         cv2.imshow("LBM", img)
 
+    def equilibrium(self, rho, ux, uy):
+        feq = np.zeros((rho.shape[0], rho.shape[1], 9))
+
+        u2 = ux ** 2 + uy ** 2
+
+        for i in range(9):
+            eu = self.e[i, 0] * ux + self.e[i, 1] * uy
+
+            feq[:, :, i] = self.w[i] * rho * (
+                    1
+                    + 3 * eu
+                    + 4.5 * eu ** 2
+                    - 1.5 * u2
+            )
+
+        return feq
+
+    def outlet_cbc_right(self, gamma=0.75):
+        cs = 1.0 / np.sqrt(3.0)
+        cs2 = 1.0 / 3.0
+        dx = 1.0
+        dt = 1.0
+
+        rho = np.sum(self.f, axis=2)
+        ux = np.sum(self.f * self.e[:, 0], axis=2) / rho
+        uy = np.sum(self.f * self.e[:, 1], axis=2) / rho
+
+        ux[self.solid] = 0.0
+        uy[self.solid] = 0.0
+
+        y = slice(1, -1)
+        x = -1
+
+        # backward 2nd-order derivative at right boundary:
+        # f'(x) ≈ (3f(x) - 4f(x-dx) + f(x-2dx)) / (2dx)
+        drho_dx = (
+                          3 * rho[y, x]
+                          - 4 * rho[y, x - 1]
+                          + rho[y, x - 2]
+                  ) / (2 * dx)
+
+        dux_dx = (
+                         3 * ux[y, x]
+                         - 4 * ux[y, x - 1]
+                         + ux[y, x - 2]
+                 ) / (2 * dx)
+
+        duy_dx = (
+                         3 * uy[y, x]
+                         - 4 * uy[y, x - 1]
+                         + uy[y, x - 2]
+                 ) / (2 * dx)
+
+        # central derivative along boundary
+        drho_dy = (
+                          rho[2:, x]
+                          - rho[:-2, x]
+                  ) / (2 * dx)
+
+        dux_dy = (
+                         ux[2:, x]
+                         - ux[:-2, x]
+                 ) / (2 * dx)
+
+        duy_dy = (
+                         uy[2:, x]
+                         - uy[:-2, x]
+                 ) / (2 * dx)
+
+        rho_b = rho[y, x]
+        ux_b = ux[y, x]
+        uy_b = uy[y, x]
+
+        # characteristic vector Lx
+        L1 = (ux_b - cs) * (
+                cs2 * drho_dx
+                - cs * rho_b * dux_dx
+        )
+
+        L2 = ux_b * duy_dx
+
+        L3 = (ux_b + cs) * (
+                cs2 * drho_dx
+                + cs * rho_b * dux_dx
+        )
+
+        # right boundary:
+        # L3 outgoing, L1 incoming.
+        # incoming is killed
+        L1p = np.zeros_like(L1)
+        L2p = L2
+        L3p = L3
+
+        # Px^{-1} Lx'
+        a_rho = (
+                (1 / (2 * cs2)) * L1p
+                + (1 / (2 * cs2)) * L3p
+        )
+
+        a_ux = (
+                (-1 / (2 * rho_b * cs)) * L1p
+                + (1 / (2 * rho_b * cs)) * L3p
+        )
+
+        a_uy = L2p
+
+        # Y * dy(m)
+        Y_rho = uy_b * drho_dy + rho_b * duy_dy
+        Y_ux = uy_b * dux_dy
+        Y_uy = (cs2 / rho_b) * drho_dy + uy_b * duy_dy
+
+        # ∂t m = -Px^-1 Lx' - gamma * Y ∂y m
+        drho_dt = -a_rho - gamma * Y_rho
+        dux_dt = -a_ux - gamma * Y_ux
+        duy_dt = -a_uy - gamma * Y_uy
+
+        rho_new = rho_b + dt * drho_dt
+        ux_new = ux_b + dt * dux_dt
+        uy_new = uy_b + dt * duy_dt
+
+        # safety clamp
+        rho_new = np.clip(rho_new, 0.95, 1.05)
+        ux_new = np.clip(ux_new, -0.1, 0.1)
+        uy_new = np.clip(uy_new, -0.1, 0.1)
+
+        rho_patch = rho_new[:, None]
+        ux_patch = ux_new[:, None]
+        uy_patch = uy_new[:, None]
+
+        feq = self.equilibrium(rho_patch, ux_patch, uy_patch)
+
+        self.f[1:-1, -1, :] = feq[:, 0, :]
+
     def visualize_density(self):
         field = self.rho.copy()
         field[self.solid] = 1.0
@@ -385,26 +557,27 @@ if __name__ == "__main__":
     lbm = LBM(
         Nx=200,
         Ny=60,
-        v_char=0.01,
-        Re=7,
+        v_char=0.05,
+        Re=70,
     )
 
-    for step in range(10000):
+    for step in range(3000):
         lbm.compute_macroscopic()
-        lbm.collide()
+        lbm.outlet_cbc_right()
+        lbm.collide_fluid_skip_right()
         lbm.stream()
 
         lbm.inlet_zou_he_velocity()
-        lbm.outlet_copy()
+        # lbm.outlet_copy()
         # lbm.outlet_zou_he_pressure(rho_out=1.0)
         # lbm.outlet_anti_bounce_back_pressure(rho_out=1.0)
 
         lbm.bounce_back()
 
-        lbm.compute_macroscopic()
+        # lbm.compute_macroscopic()
 
-        # lbm.visualize_velocity()
-        lbm.visualize_density()
+        lbm.visualize_velocity()
+        # lbm.visualize_density()
 
         if step % 50 == 0:
             lbm.print_stats(step)

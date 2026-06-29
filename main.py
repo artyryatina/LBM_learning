@@ -23,7 +23,7 @@ tau = 3.0 * viscosity + 0.5
 print("viscosity  =", viscosity)
 print("tau =", tau)
 
-steps = 30000
+steps = 3000
 plot_every = 1
 ramp_steps = 200
 
@@ -226,23 +226,23 @@ for step in range(steps):
     # OUTLET (right boundary)
     # =====================================================
 
-    # rho_out = 1.0
-    #
-    # f0 = f[1:-1, -1, 0]
-    # f1 = f[1:-1, -1, 1]
-    # f2 = f[1:-1, -1, 2]
-    # f4 = f[1:-1, -1, 4]
-    # f5 = f[1:-1, -1, 5]
-    # f8 = f[1:-1, -1, 8]
-    #
-    # ux_out = -1 + (f0 + f2 + f4 + 2 * (f1 + f5 + f8)) / rho_out
-    #
-    # f[1:-1, -1, 3] = f1 - (2 / 3) * rho_out * ux_out
-    # f[1:-1, -1, 6] = f8 - 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
-    # f[1:-1, -1, 7] = f5 + 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
+    rho_out = 1.0
 
-    for i in range(9):
-        f[1:-1, -1, i] = f[1:-1, -2, i]
+    f0 = f[1:-1, -1, 0]
+    f1 = f[1:-1, -1, 1]
+    f2 = f[1:-1, -1, 2]
+    f4 = f[1:-1, -1, 4]
+    f5 = f[1:-1, -1, 5]
+    f8 = f[1:-1, -1, 8]
+
+    ux_out = -1 + (f0 + f2 + f4 + 2 * (f1 + f5 + f8)) / rho_out
+
+    f[1:-1, -1, 3] = f1 - (2 / 3) * rho_out * ux_out
+    f[1:-1, -1, 6] = f8 - 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
+    f[1:-1, -1, 7] = f5 + 0.5 * (f2 - f4) - (1 / 6) * rho_out * ux_out
+
+    # for i in range(9):
+    #     f[1:-1, -1, i] = f[1:-1, -2, i]
 
     # =====================================================
     # OUTLET (right boundary) - Anti-bounce-back pressure

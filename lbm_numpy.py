@@ -113,7 +113,7 @@ class LBM:
 
         self.rho = np.ones((self.Ny, self.Nx))
 
-        self.ux = np.full((self.Ny, self.Nx), self.v_char)
+        self.ux = np.zeros((self.Ny, self.Nx))
         self.uy = np.zeros((self.Ny, self.Nx))
 
         self.ux[self.solid] = 0.0
@@ -222,9 +222,11 @@ class LBM:
         for i in range(9):
             self.f[:, :, self.opp[i]][self.solid] = f_old[:, :, i][self.solid]
 
-    def inlet_zou_he_velocity(self, u_in=None):
-        if u_in is None:
+    def inlet_zou_he_velocity(self, step=None, ramp_steps=None):
+        if (step or ramp_steps) is None:
             u_in = self.v_char
+        else:
+            u_in = self.v_char * min(1.0, step / ramp_steps)
 
         f0 = self.f[1:-1, 0, 0]
         f2 = self.f[1:-1, 0, 2]
@@ -567,7 +569,7 @@ if __name__ == "__main__":
         lbm.collide_fluid_skip_right()
         lbm.stream()
 
-        lbm.inlet_zou_he_velocity()
+        lbm.inlet_zou_he_velocity(step, 200)
         # lbm.outlet_copy()
         # lbm.outlet_zou_he_pressure(rho_out=1.0)
         # lbm.outlet_anti_bounce_back_pressure(rho_out=1.0)

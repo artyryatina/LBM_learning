@@ -585,19 +585,62 @@ class LBM:
 
         return False
 
+    # def print_stats(self, step):
+    #     rho_now = np.sum(self.f, axis=2)
+    #
+    #     print(
+    #         step,
+    #         "rho mean/min/max",
+    #         np.mean(rho_now), np.min(rho_now), np.max(rho_now),
+    #         "ux mean/min/max",
+    #         np.mean(self.ux), np.min(self.ux), np.max(self.ux),
+    #         "rho right mean",
+    #         np.mean(rho_now[1:-1, -2]),
+    #         "ux right mean/max",
+    #         np.mean(self.ux[1:-1, -2]), np.max(self.ux[1:-1, -2])
+    #     )
+
     def print_stats(self, step):
-        rho_now = np.sum(self.f, axis=2)
+        mask = ~self.solid
+
+        rho_now = np.zeros_like(self.rho)
+        rho_now[mask] = np.sum(self.f[mask, :], axis=1)
+
+        bad_f = mask[:, :, None] & (
+                np.isnan(self.f) | np.isinf(self.f) | (self.f == 0.0)
+        )
+
+        bad_rho = mask & (
+                np.isnan(rho_now) | np.isinf(rho_now) | (rho_now == 0.0)
+        )
+
+        bad_ux = mask & (
+                np.isnan(self.ux) | np.isinf(self.ux) | (self.ux == 0.0)
+        )
+
+        bad_uy = mask & (
+                np.isnan(self.uy) | np.isinf(self.uy) | (self.uy == 0.0)
+        )
+
 
         print(
             step,
             "rho mean/min/max",
-            np.mean(rho_now), np.min(rho_now), np.max(rho_now),
+            np.nanmean(rho_now[mask]),
+            np.nanmin(rho_now[mask]),
+            np.nanmax(rho_now[mask]),
+
             "ux mean/min/max",
-            np.mean(self.ux), np.min(self.ux), np.max(self.ux),
+            np.nanmean(self.ux[mask]),
+            np.nanmin(self.ux[mask]),
+            np.nanmax(self.ux[mask]),
+
             "rho right mean",
-            np.mean(rho_now[1:-1, -2]),
+            np.nanmean(rho_now[1:-1, -2]),
+
             "ux right mean/max",
-            np.mean(self.ux[1:-1, -2]), np.max(self.ux[1:-1, -2])
+            np.nanmean(self.ux[1:-1, -2]),
+            np.nanmax(self.ux[1:-1, -2]),
         )
 
 if __name__ == "__main__":

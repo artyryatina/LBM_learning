@@ -70,6 +70,10 @@ class LBM:
         self.f = None
         self.initialize_distribution()
 
+        self.cbc_rho_right = np.ones(self.Ny)
+        self.cbc_ux_right = np.zeros(self.Ny)
+        self.cbc_uy_right = np.zeros(self.Ny)
+
         cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("LBM", 1200, 400)
 
@@ -146,13 +150,18 @@ class LBM:
             self.mouse_y = y
 
     def compute_macroscopic(self):
-        self.rho = np.sum(self.f, axis=2)
+        mask = ~self.solid
 
-        self.ux = np.sum(self.f * self.e[:, 0], axis=2) / self.rho
-        self.uy = np.sum(self.f * self.e[:, 1], axis=2) / self.rho
+        self.rho[:, :] = 0.0
+        self.ux[:, :] = 0.0
+        self.uy[:, :] = 0.0
 
-        self.ux[self.solid] = 0.0
-        self.uy[self.solid] = 0.0
+        rho = np.sum(self.f[mask, :], axis=1)
+
+        self.rho[mask] = rho
+
+        self.ux[mask] = np.sum(self.f[mask, :] * self.e[:, 0], axis=1) / rho
+        self.uy[mask] = np.sum(self.f[mask, :] * self.e[:, 1], axis=1) / rho
 
     def collide(self):
         feq = np.zeros_like(self.f)
@@ -383,121 +392,125 @@ class LBM:
 
         return feq
 
-    def outlet_cbc_right(self, gamma=0.75):
-        cs = 1.0 / np.sqrt(3.0)
-        cs2 = 1.0 / 3.0
-        dx = 1.0
-        dt = 1.0
+    def outlet_cbc_right(self):
+        """
+        CBC / characteristic outlet на правій межі x = Nx - 1.
 
-        rho = np.sum(self.f, axis=2)
-        ux = np.sum(self.f * self.e[:, 0], axis=2) / rho
-        uy = np.sum(self.f * self.e[:, 1], axis=2) / rho
+        Ідея:
+        1) беремо збережені макрозмінні на outlet: rho, ux, uy = m(t)
+        2) будуємо з них f_eq і записуємо в праву колонку
+        3) по внутрішніх вузлах рахуємо просторові похідні
+        4) через характеристики прогнозуємо m(t + dt)
+        5) зберігаємо його для наступного кроку
+        """
 
-        ux[self.solid] = 0.0
-        uy[self.solid] = 0.0
+        x = self.Nx - 1
 
+        # тільки fluid-вузли, без верхньої/нижньої стінки
         y = slice(1, -1)
-        x = -1
 
-        # backward 2nd-order derivative at right boundary:
-        # f'(x) ≈ (3f(x) - 4f(x-dx) + f(x-2dx)) / (2dx)
-        drho_dx = (
-                          3 * rho[y, x]
-                          - 4 * rho[y, x - 1]
-                          + rho[y, x - 2]
-                  ) / (2 * dx)
+        cs = 1.0 / np.sqrt(3.0)
+        dt = 1.0
+        dx = 1.0
 
-        dux_dx = (
-                         3 * ux[y, x]
-                         - 4 * ux[y, x - 1]
-                         + ux[y, x - 2]
-                 ) / (2 * dx)
+        # =====================================================
+        # 1. Беремо m(t), яке CBC зберігає окремо
+        # =====================================================
 
-        duy_dx = (
-                         3 * uy[y, x]
-                         - 4 * uy[y, x - 1]
-                         + uy[y, x - 2]
-                 ) / (2 * dx)
-
-        # central derivative along boundary
-        drho_dy = (
-                          rho[2:, x]
-                          - rho[:-2, x]
-                  ) / (2 * dx)
-
-        dux_dy = (
-                         ux[2:, x]
-                         - ux[:-2, x]
-                 ) / (2 * dx)
-
-        duy_dy = (
-                         uy[2:, x]
-                         - uy[:-2, x]
-                 ) / (2 * dx)
-
-        rho_b = rho[y, x]
-        ux_b = ux[y, x]
-        uy_b = uy[y, x]
-
-        # characteristic vector Lx
-        L1 = (ux_b - cs) * (
-                cs2 * drho_dx
-                - cs * rho_b * dux_dx
-        )
-
-        L2 = ux_b * duy_dx
-
-        L3 = (ux_b + cs) * (
-                cs2 * drho_dx
-                + cs * rho_b * dux_dx
-        )
-
-        # right boundary:
-        # L3 outgoing, L1 incoming.
-        # incoming is killed
-        L1p = np.zeros_like(L1)
-        L2p = L2
-        L3p = L3
-
-        # Px^{-1} Lx'
-        a_rho = (
-                (1 / (2 * cs2)) * L1p
-                + (1 / (2 * cs2)) * L3p
-        )
-
-        a_ux = (
-                (-1 / (2 * rho_b * cs)) * L1p
-                + (1 / (2 * rho_b * cs)) * L3p
-        )
-
-        a_uy = L2p
-
-        # Y * dy(m)
-        Y_rho = uy_b * drho_dy + rho_b * duy_dy
-        Y_ux = uy_b * dux_dy
-        Y_uy = (cs2 / rho_b) * drho_dy + uy_b * duy_dy
-
-        # ∂t m = -Px^-1 Lx' - gamma * Y ∂y m
-        drho_dt = -a_rho - gamma * Y_rho
-        dux_dt = -a_ux - gamma * Y_ux
-        duy_dt = -a_uy - gamma * Y_uy
-
-        rho_new = rho_b + dt * drho_dt
-        ux_new = ux_b + dt * dux_dt
-        uy_new = uy_b + dt * duy_dt
+        rho_b = self.cbc_rho_right[y].copy()
+        ux_b = self.cbc_ux_right[y].copy()
+        uy_b = self.cbc_uy_right[y].copy()
 
         # safety clamp
-        rho_new = np.clip(rho_new, 0.95, 1.05)
-        ux_new = np.clip(ux_new, -0.1, 0.1)
-        uy_new = np.clip(uy_new, -0.1, 0.1)
+        rho_b = np.maximum(rho_b, 1e-8)
 
-        rho_patch = rho_new[:, None]
-        ux_patch = ux_new[:, None]
-        uy_patch = uy_new[:, None]
+        # =====================================================
+        # 2. З m(t) будуємо f_eq і ставимо в outlet-вузли
+        # =====================================================
 
-        feq = self.equilibrium(rho_patch, ux_patch, uy_patch)
+        u2 = ux_b ** 2 + uy_b ** 2
 
-        self.f[1:-1, -1, :] = feq[:, 0, :]
+        for i in range(9):
+            eu = self.e[i, 0] * ux_b + self.e[i, 1] * uy_b
+
+            self.f[y, x, i] = self.w[i] * rho_b * (
+                    1
+                    + 3.0 * eu
+                    + 4.5 * eu ** 2
+                    - 1.5 * u2
+            )
+
+        # =====================================================
+        # 3. Рахуємо ∂x rho, ∂x ux, ∂x uy на правій межі
+        #    backward difference:
+        #    df/dx = (3f_b - 4f_{-1} + f_{-2}) / (2dx)
+        # =====================================================
+
+        rho_1 = self.rho[y, x - 1]
+        rho_2 = self.rho[y, x - 2]
+
+        ux_1 = self.ux[y, x - 1]
+        ux_2 = self.ux[y, x - 2]
+
+        uy_1 = self.uy[y, x - 1]
+        uy_2 = self.uy[y, x - 2]
+
+        drho_dx = (3.0 * rho_b - 4.0 * rho_1 + rho_2) / (2.0 * dx)
+        dux_dx = (3.0 * ux_b - 4.0 * ux_1 + ux_2) / (2.0 * dx)
+        duy_dx = (3.0 * uy_b - 4.0 * uy_1 + uy_2) / (2.0 * dx)
+
+        # =====================================================
+        # 4. Характеристики для правого outlet
+        #
+        # lambda_minus = ux - cs  -> хвиля заходить ззовні в домен
+        # lambda_plus  = ux + cs  -> хвиля виходить з домену
+        # lambda_0     = ux       -> перенос uy
+        #
+        # Для non-reflecting outlet:
+        # L_minus = 0
+        # =====================================================
+
+        lambda_plus = ux_b + cs
+        lambda_0 = ux_b
+
+        L_minus = 0.0
+
+        L_plus = lambda_plus * (
+                drho_dx + (rho_b / cs) * dux_dx
+        )
+
+        L_0 = lambda_0 * duy_dx
+
+        # =====================================================
+        # 5. Відновлюємо часові похідні макрозмінних
+        # =====================================================
+
+        drho_dt = -0.5 * (L_plus + L_minus)
+
+        dux_dt = -(cs / (2.0 * rho_b)) * (L_plus - L_minus)
+
+        duy_dt = -L_0
+
+        # =====================================================
+        # 6. Оновлюємо m(t + dt)
+        # =====================================================
+
+        rho_next = rho_b + dt * drho_dt
+        ux_next = ux_b + dt * dux_dt
+        uy_next = uy_b + dt * duy_dt
+
+        # safety
+        rho_next = np.maximum(rho_next, 1e-8)
+
+        # можна трохи обмежити швидкість, щоб не вибухало
+        ux_next = np.clip(ux_next, -0.2, 0.2)
+        uy_next = np.clip(uy_next, -0.2, 0.2)
+
+        # зберігаємо для наступного кроку
+        self.cbc_rho_right[y] = rho_next
+        self.cbc_ux_right[y] = ux_next
+        self.cbc_uy_right[y] = uy_next
+
 
     def visualize_density(self):
         field = self.rho.copy()

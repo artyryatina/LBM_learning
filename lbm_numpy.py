@@ -375,6 +375,39 @@ class LBM:
 
         cv2.imshow("LBM", img)
 
+    def stream2(self):
+        f_old = self.f.copy()
+        f_new = np.full_like(f_old, np.nan)
+
+        # 0: rest
+        f_new[:, :, 0] = f_old[:, :, 0]
+
+        # 1: east  (x + 1)
+        f_new[:, 1:, 1] = f_old[:, :-1, 1]
+
+        # 2: north (y + 1)
+        f_new[1:, :, 2] = f_old[:-1, :, 2]
+
+        # 3: west  (x - 1)
+        f_new[:, :-1, 3] = f_old[:, 1:, 3]
+
+        # 4: south (y - 1)
+        f_new[:-1, :, 4] = f_old[1:, :, 4]
+
+        # 5: north-east (x + 1, y + 1)
+        f_new[1:, 1:, 5] = f_old[:-1, :-1, 5]
+
+        # 6: north-west (x - 1, y + 1)
+        f_new[1:, :-1, 6] = f_old[:-1, 1:, 6]
+
+        # 7: south-west (x - 1, y - 1)
+        f_new[:-1, :-1, 7] = f_old[1:, 1:, 7]
+
+        # 8: south-east (x + 1, y - 1)
+        f_new[:-1, 1:, 8] = f_old[1:, :-1, 8]
+
+        self.f = f_new
+
     def equilibrium(self, rho, ux, uy):
         feq = np.zeros((rho.shape[0], rho.shape[1], 9))
 
@@ -580,7 +613,7 @@ if __name__ == "__main__":
         lbm.compute_macroscopic()
         lbm.outlet_cbc_right()
         lbm.collide_fluid_skip_right()
-        lbm.stream()
+        lbm.stream2()
 
         lbm.inlet_zou_he_velocity(step, 200)
         # lbm.outlet_copy()

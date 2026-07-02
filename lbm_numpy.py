@@ -4,11 +4,11 @@ import numpy as np
 
 class LBM:
     def __init__(
-        self,
-        Nx,
-        Ny,
-        v_char,
-        Re,
+            self,
+            Nx,
+            Ny,
+            v_char,
+            Re,
     ):
         # =====================================================
         # PARAMETERS
@@ -17,13 +17,13 @@ class LBM:
         self.Nx = Nx
         self.Ny = Ny
 
-        self.v_char = v_char # характеристична швидкість
-        self.Re = Re # задане числом Рейнольдса
+        self.v_char = v_char  # характеристична швидкість
+        self.Re = Re  # задане числом Рейнольдса
 
-        self.L = Ny - 2 # верхній і нижній ряд — це стінки
+        self.L = Ny - 2  # верхній і нижній ряд — це стінки
 
-        self.viscosity = self.v_char * self.L / self.Re # viscosity from Reynolds number
-        self.tau = 3.0 * self.viscosity + 0.5 # relaxation time
+        self.viscosity = self.v_char * self.L / self.Re  # viscosity from Reynolds number
+        self.tau = 3.0 * self.viscosity + 0.5  # relaxation time
 
         self.steps = 30000
         self.ramp_steps = 200
@@ -37,21 +37,21 @@ class LBM:
 
         # allowed directions
         self.e = np.array([
-            [ 0, 0],
-            [ 1, 0],
-            [ 0, 1],
+            [0, 0],
+            [1, 0],
+            [0, 1],
             [-1, 0],
-            [ 0,-1],
-            [ 1, 1],
+            [0, -1],
+            [1, 1],
             [-1, 1],
-            [-1,-1],
-            [ 1,-1]
+            [-1, -1],
+            [1, -1]
         ])
 
         self.w = np.array([
-            4/9,
-            1/9, 1/9, 1/9, 1/9,
-            1/36, 1/36, 1/36, 1/36
+            4 / 9,
+            1 / 9, 1 / 9, 1 / 9, 1 / 9,
+            1 / 36, 1 / 36, 1 / 36, 1 / 36
         ])
 
         # opposite directions
@@ -59,8 +59,15 @@ class LBM:
             0, 3, 4, 1, 2, 7, 8, 5, 6
         ])
 
-        self.solid = None
-        self.initialize_solid()
+        self.solid_mask = None
+
+        self.fluid_mask = None
+        self.cbc_fluid_mask = None
+
+        self.inlet_mask = None
+        self.outlet_mask = None
+
+        self.initialize_masks()
 
         self.ux = None
         self.uy = None
@@ -82,21 +89,18 @@ class LBM:
 
         cv2.setMouseCallback("LBM", self.mouse_callback)
 
-
-    def initialize_solid(self):
+    def initialize_masks(self):
         # =====================================================
-        # WALLS
-        # =====================================================
-
-        self.solid = np.zeros((self.Ny, self.Nx), dtype=bool)
-
-        self.solid[0, :] = True
-        self.solid[-1, :] = True
-
-        # =====================================================
-        # CIRCLE OBSTACLE
+        # SOLID
         # =====================================================
 
+        # walls
+        self.solid_mask = np.zeros((self.Ny, self.Nx), dtype=bool)
+
+        self.solid_mask[0, :] = True
+        self.solid_mask[-1, :] = True
+
+        # circle obstacle
         cx = self.Nx // 2
         cy = self.Ny // 2
         radius = 2
@@ -108,7 +112,32 @@ class LBM:
                          (Y - cy) ** 2
                  ) <= radius ** 2
 
-        self.solid[circle] = True
+        self.solid_mask[circle] = True
+
+        # =====================================================
+        # FLUID
+        # =====================================================
+        self.fluid_mask = ~self.solid_mask
+
+        # =====================================================
+        # INLET
+        # =====================================================
+        self.inlet_mask = np.zeros_like(self.solid_mask)
+        self.inlet_mask[1:-1, 0] = True
+
+        # =====================================================
+        # OUTLET
+        # =====================================================
+        self.outlet_mask = np.zeros_like(self.solid_mask)
+        self.outlet_mask[1:-1, -1] = True
+
+        # =====================================================
+        # FLUID CBC
+        # =====================================================
+        self.cbc_fluid_mask = (
+                self.fluid_mask &
+                ~self.outlet_mask
+        )
 
     def initialize_macroscopic(self):
         # =====================================================
@@ -116,15 +145,13 @@ class LBM:
         # =====================================================
 
         self.rho = np.ones((self.Ny, self.Nx))
-
         self.ux = np.zeros((self.Ny, self.Nx))
         self.uy = np.zeros((self.Ny, self.Nx))
 
-        self.ux[self.solid] = 0.0
-        self.uy[self.solid] = 0.0
+        # self.ux[self.fluid_mask] = self.v_char
+        # self.ux[self.inlet_mask] = self.v_char
 
     def initialize_distribution(self):
-
         # =====================================================
         # INITIAL DISTRIBUTION
         # self.f[y, x, i]
@@ -150,9 +177,9 @@ class LBM:
             self.mouse_y = y
 
     def compute_macroscopic(self):
-        mask = ~self.solid
+        mask = self.fluid_mask
 
-        self.rho[:, :] = 0.0
+        self.rho[:, :] = 1.0
         self.ux[:, :] = 0.0
         self.uy[:, :] = 0.0
 
@@ -163,42 +190,30 @@ class LBM:
         self.ux[mask] = np.sum(self.f[mask, :] * self.e[:, 0], axis=1) / rho
         self.uy[mask] = np.sum(self.f[mask, :] * self.e[:, 1], axis=1) / rho
 
+    def compute_macroscopic_cbc(self):
+        mask = self.cbc_fluid_mask
+
+        self.rho[:, :] = 1.0
+        self.ux[:, :] = 0.0
+        self.uy[:, :] = 0.0
+
+        rho = np.sum(self.f[mask], axis=1)
+
+        self.rho[mask] = rho
+        self.ux[mask] = np.sum(self.f[mask] * self.e[:, 0], axis=1) / rho
+        self.uy[mask] = np.sum(self.f[mask] * self.e[:, 1], axis=1) / rho
+
+        self.rho[self.outlet_mask] = self.cbc_rho_right[1:-1]
+        self.ux[self.outlet_mask] = self.cbc_ux_right[1:-1]
+        self.uy[self.outlet_mask] = self.cbc_uy_right[1:-1]
+
     def collide(self):
-        feq = np.zeros_like(self.f)
+        """
+        Collision для звичайних outlet BC.
+        """
 
-        u2 = self.ux ** 2 + self.uy ** 2
+        mask = self.fluid_mask
 
-        for i in range(9):
-            eu = self.e[i, 0] * self.ux + self.e[i, 1] * self.uy
-
-            feq[:, :, i] = self.w[i] * self.rho * (
-                    1
-                    + 3 * eu
-                    + 4.5 * eu ** 2
-                    - 1.5 * u2
-            )
-        self.f += -(self.f - feq) / self.tau
-
-    def collide_fluid_only(self):
-        feq = np.zeros_like(self.f)
-
-        u2 = self.ux ** 2 + self.uy ** 2
-
-        for i in range(9):
-            eu = self.e[i, 0] * self.ux + self.e[i, 1] * self.uy
-
-            feq[:, :, i] = self.w[i] * self.rho * (
-                    1
-                    + 3 * eu
-                    + 4.5 * eu ** 2
-                    - 1.5 * u2
-            )
-
-        mask = ~self.solid
-
-        self.f[mask, :] += -(self.f[mask, :] - feq[mask, :]) / self.tau
-
-    def collide_fluid_skip_right(self):
         feq = np.zeros_like(self.f)
 
         u2 = self.ux ** 2 + self.uy ** 2
@@ -213,169 +228,39 @@ class LBM:
                     - 1.5 * u2
             )
 
-        mask = ~self.solid
-        mask[:, -1] = False  # не чіпаємо CBC outlet column
+        self.f[mask] += -(self.f[mask] - feq[mask]) / self.tau
 
-        self.f[mask, :] += -(self.f[mask, :] - feq[mask, :]) / self.tau
+    def collide_cbc(self):
+        """
+        Collision для CBC outlet.
+        """
 
-    def stream(self):
+        mask = self.cbc_fluid_mask
+
+        feq = np.zeros_like(self.f)
+
+        u2 = self.ux ** 2 + self.uy ** 2
+
+        for i in range(9):
+            eu = self.e[i, 0] * self.ux + self.e[i, 1] * self.uy
+
+            feq[:, :, i] = self.w[i] * self.rho * (
+                    1
+                    + 3 * eu
+                    + 4.5 * eu ** 2
+                    - 1.5 * u2
+            )
+
+        self.f[mask] += -(self.f[mask] - feq[mask]) / self.tau
+
+    def stream_old(self):
         for i in range(9):
             self.f[:, :, i] = np.roll(
                 np.roll(self.f[:, :, i], self.e[i, 0], axis=1),
                 self.e[i, 1], axis=0
             )
 
-    def bounce_back(self):
-        f_old = self.f.copy()
-
-        for i in range(9):
-            self.f[:, :, self.opp[i]][self.solid] = f_old[:, :, i][self.solid]
-
-    def inlet_zou_he_velocity(self, step=None, ramp_steps=None):
-        if (step or ramp_steps) is None:
-            u_in = self.v_char
-        else:
-            u_in = self.v_char * min(1.0, step / ramp_steps)
-
-        f0 = self.f[1:-1, 0, 0]
-        f2 = self.f[1:-1, 0, 2]
-        f3 = self.f[1:-1, 0, 3]
-        f4 = self.f[1:-1, 0, 4]
-        f6 = self.f[1:-1, 0, 6]
-        f7 = self.f[1:-1, 0, 7]
-
-        rho_in = (
-                         f0 + f2 + f4
-                         + 2 * (f3 + f6 + f7)
-                 ) / (1 - u_in)
-
-        self.f[1:-1, 0, 1] = f3 + (2 / 3) * rho_in * u_in
-
-        self.f[1:-1, 0, 5] = (
-                f7
-                - 0.5 * (f2 - f4)
-                + (1 / 6) * rho_in * u_in
-        )
-
-        self.f[1:-1, 0, 8] = (
-                f6
-                + 0.5 * (f2 - f4)
-                + (1 / 6) * rho_in * u_in
-        )
-
-    def outlet_zou_he_pressure(self, rho_out=1.0):
-        f0 = self.f[1:-1, -1, 0]
-        f1 = self.f[1:-1, -1, 1]
-        f2 = self.f[1:-1, -1, 2]
-        f4 = self.f[1:-1, -1, 4]
-        f5 = self.f[1:-1, -1, 5]
-        f8 = self.f[1:-1, -1, 8]
-
-        ux_out = -1 + (
-                f0 + f2 + f4
-                + 2 * (f1 + f5 + f8)
-        ) / rho_out
-
-        self.f[1:-1, -1, 3] = f1 - (2 / 3) * rho_out * ux_out
-
-        self.f[1:-1, -1, 6] = (
-                f8
-                - 0.5 * (f2 - f4)
-                - (1 / 6) * rho_out * ux_out
-        )
-
-        self.f[1:-1, -1, 7] = (
-                f5
-                + 0.5 * (f2 - f4)
-                - (1 / 6) * rho_out * ux_out
-        )
-
-    def outlet_copy(self):
-        for i in range(9):
-            self.f[1:-1, -1, i] = self.f[1:-1, -2, i]
-
-    def outlet_anti_bounce_back_pressure(self, rho_out=1.0):
-        rho = np.sum(self.f, axis=2)
-
-        ux = np.sum(self.f * self.e[:, 0], axis=2) / rho
-        uy = np.sum(self.f * self.e[:, 1], axis=2) / rho
-
-        ux[self.solid] = 0.0
-        uy[self.solid] = 0.0
-
-        cs2 = 1.0 / 3.0
-        cs4 = cs2 ** 2
-
-        ux_w = ux[1:-1, -2] + 0.5 * (ux[1:-1, -2] - ux[1:-1, -3])
-        uy_w = uy[1:-1, -2] + 0.5 * (uy[1:-1, -2] - uy[1:-1, -3])
-
-        u2_w = ux_w ** 2 + uy_w ** 2
-
-        cu = self.e[3, 0] * ux_w + self.e[3, 1] * uy_w
-
-        self.f[1:-1, -1, 3] = (
-                -self.f[1:-1, -1, 1]
-                + 2 * self.w[3] * rho_out * (
-                        1
-                        + (cu ** 2) / (2 * cs4)
-                        - u2_w / (2 * cs2)
-                )
-        )
-
-        cu = self.e[6, 0] * ux_w + self.e[6, 1] * uy_w
-
-        self.f[1:-1, -1, 6] = (
-                -self.f[1:-1, -1, 8]
-                + 2 * self.w[6] * rho_out * (
-                        1
-                        + (cu ** 2) / (2 * cs4)
-                        - u2_w / (2 * cs2)
-                )
-        )
-
-        cu = self.e[7, 0] * ux_w + self.e[7, 1] * uy_w
-
-        self.f[1:-1, -1, 7] = (
-                -self.f[1:-1, -1, 5]
-                + 2 * self.w[7] * rho_out * (
-                        1
-                        + (cu ** 2) / (2 * cs4)
-                        - u2_w / (2 * cs2)
-                )
-        )
-
-    def visualize_velocity(self):
-        speed = np.sqrt(self.ux ** 2 + self.uy ** 2)
-        speed[self.solid] = 0.0
-
-        img = speed / (2.0 * self.v_char)
-        img = np.clip(img, 0, 1)
-        img = (255 * img).astype(np.uint8)
-        img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
-
-        grid_x = int(self.mouse_x - 1)
-        grid_y = int(self.mouse_y - 1)
-
-        grid_x = np.clip(grid_x, 0, self.Nx - 1)
-        grid_y = np.clip(grid_y, 0, self.Ny - 1)
-
-        u_mouse = speed[grid_y, grid_x]
-
-        text = f"x={grid_x}, y={grid_y}, u={u_mouse:.3f}"
-
-        cv2.putText(
-            img,
-            text,
-            (0, self.Ny - 2),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.4,
-            (255, 255, 255),
-            1
-        )
-
-        cv2.imshow("LBM", img)
-
-    def stream2(self):
+    def stream(self):
         f_old = self.f.copy()
         f_new = np.full_like(f_old, np.nan)
 
@@ -408,22 +293,147 @@ class LBM:
 
         self.f = f_new
 
-    def equilibrium(self, rho, ux, uy):
-        feq = np.zeros((rho.shape[0], rho.shape[1], 9))
-
-        u2 = ux ** 2 + uy ** 2
+    def bounce_back(self):
+        mask = self.solid_mask
+        f_old = self.f.copy()
 
         for i in range(9):
-            eu = self.e[i, 0] * ux + self.e[i, 1] * uy
+            self.f[:, :, self.opp[i]][mask] = f_old[:, :, i][mask]
 
-            feq[:, :, i] = self.w[i] * rho * (
-                    1
-                    + 3 * eu
-                    + 4.5 * eu ** 2
-                    - 1.5 * u2
-            )
+    def inlet_zou_he_velocity_left(self, step=None, ramp_steps=None):
+        mask = self.inlet_mask
 
-        return feq
+        if step is None or ramp_steps is None:
+            u_in = self.v_char
+        else:
+            u_in = self.v_char * min(1.0, step / ramp_steps)
+
+        f0 = self.f[mask, 0]
+        f2 = self.f[mask, 2]
+        f3 = self.f[mask, 3]
+        f4 = self.f[mask, 4]
+        f6 = self.f[mask, 6]
+        f7 = self.f[mask, 7]
+
+        rho_in = (
+                         f0 + f2 + f4
+                         + 2.0 * (f3 + f6 + f7)
+                 ) / (1.0 - u_in)
+
+        self.f[mask, 1] = f3 + (2.0 / 3.0) * rho_in * u_in
+
+        self.f[mask, 5] = (
+                f7
+                - 0.5 * (f2 - f4)
+                + (1.0 / 6.0) * rho_in * u_in
+        )
+
+        self.f[mask, 8] = (
+                f6
+                + 0.5 * (f2 - f4)
+                + (1.0 / 6.0) * rho_in * u_in
+        )
+
+    def outlet_zou_he_pressure_right(self, rho_out=1.0):
+        mask = self.outlet_mask
+
+        f0 = self.f[mask, 0]
+        f1 = self.f[mask, 1]
+        f2 = self.f[mask, 2]
+        f4 = self.f[mask, 4]
+        f5 = self.f[mask, 5]
+        f8 = self.f[mask, 8]
+
+        ux_out = -1 + (
+                f0 + f2 + f4
+                + 2 * (f1 + f5 + f8)
+        ) / rho_out
+
+        self.f[mask, 3] = f1 - (2 / 3) * rho_out * ux_out
+
+        self.f[mask, 6] = (
+                f8
+                - 0.5 * (f2 - f4)
+                - (1 / 6) * rho_out * ux_out
+        )
+
+        self.f[mask, 7] = (
+                f5
+                + 0.5 * (f2 - f4)
+                - (1 / 6) * rho_out * ux_out
+        )
+
+    def outlet_copy_right(self):
+        mask = self.outlet_mask
+
+        for i in range(9):
+            self.f[mask, i] = self.f[:, -2, i][mask]
+
+    def outlet_anti_bounce_back_pressure_right(self, rho_out=1.0):
+        mask = self.outlet_mask
+
+        rho = np.sum(self.f, axis=2)
+
+        ux = np.sum(self.f * self.e[:, 0], axis=2) / rho
+        uy = np.sum(self.f * self.e[:, 1], axis=2) / rho
+
+        cs2 = 1.0 / 3.0
+        cs4 = cs2 ** 2
+
+        ux_w = ux[:, -2][mask] + 0.5 * (ux[:, -2][mask] - ux[:, -3][mask])
+        uy_w = uy[:, -2][mask] + 0.5 * (uy[:, -2][mask] - uy[:, -3][mask])
+
+        u2_w = ux_w ** 2 + uy_w ** 2
+
+        cu = self.e[3, 0] * ux_w + self.e[3, 1] * uy_w
+
+        self.f[mask, 3] = (
+                -self.f[mask, 1]
+                + 2 * self.w[3] * rho_out * (
+                        1
+                        + (cu ** 2) / (2 * cs4)
+                        - u2_w / (2 * cs2)
+                )
+        )
+
+        cu = self.e[6, 0] * ux_w + self.e[6, 1] * uy_w
+
+        self.f[mask, 6] = (
+                -self.f[mask, 8]
+                + 2 * self.w[6] * rho_out * (
+                        1
+                        + (cu ** 2) / (2 * cs4)
+                        - u2_w / (2 * cs2)
+                )
+        )
+
+        cu = self.e[7, 0] * ux_w + self.e[7, 1] * uy_w
+
+        self.f[mask, 7] = (
+                -self.f[mask, 5]
+                + 2 * self.w[7] * rho_out * (
+                        1
+                        + (cu ** 2) / (2 * cs4)
+                        - u2_w / (2 * cs2)
+                )
+        )
+
+    # def equilibrium(self, rho, ux, uy):
+    #     feq = np.zeros((rho.shape[0], rho.shape[1], 9))
+    #
+    #     u2 = ux ** 2 + uy ** 2
+    #
+    #     for i in range(9):
+    #         eu = self.e[i, 0] * ux + self.e[i, 1] * uy
+    #
+    #         feq[:, :, i] = self.w[i] * rho * (
+    #                 1
+    #                 + 3 * eu
+    #                 + 4.5 * eu ** 2
+    #                 - 1.5 * u2
+    #         )
+    #
+    #     return feq
 
     def outlet_cbc_right(self):
         """
@@ -544,10 +554,40 @@ class LBM:
         self.cbc_ux_right[y] = ux_next
         self.cbc_uy_right[y] = uy_next
 
+    def visualize_velocity(self):
+        speed = np.sqrt(self.ux ** 2 + self.uy ** 2)
+        speed[self.solid_mask] = 0.0
+
+        img = speed / (2.0 * self.v_char)
+        img = np.clip(img, 0, 1)
+        img = (255 * img).astype(np.uint8)
+        img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+
+        grid_x = int(self.mouse_x - 1)
+        grid_y = int(self.mouse_y - 1)
+
+        grid_x = np.clip(grid_x, 0, self.Nx - 1)
+        grid_y = np.clip(grid_y, 0, self.Ny - 1)
+
+        u_mouse = speed[grid_y, grid_x]
+
+        text = f"x={grid_x}, y={grid_y}, u={u_mouse:.3f}"
+
+        cv2.putText(
+            img,
+            text,
+            (0, self.Ny - 2),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.4,
+            (255, 255, 255),
+            1
+        )
+
+        cv2.imshow("LBM", img)
 
     def visualize_density(self):
         field = self.rho.copy()
-        field[self.solid] = 1.0
+        field[self.solid_mask] = 1.0
 
         img = (field - 0.95) / (1.10 - 0.95)
         img = np.clip(img, 0, 1)
@@ -601,47 +641,30 @@ class LBM:
     #     )
 
     def print_stats(self, step):
-        mask = ~self.solid
-
-        rho_now = np.zeros_like(self.rho)
-        rho_now[mask] = np.sum(self.f[mask, :], axis=1)
-
-        bad_f = mask[:, :, None] & (
-                np.isnan(self.f) | np.isinf(self.f) | (self.f == 0.0)
-        )
-
-        bad_rho = mask & (
-                np.isnan(rho_now) | np.isinf(rho_now) | (rho_now == 0.0)
-        )
-
-        bad_ux = mask & (
-                np.isnan(self.ux) | np.isinf(self.ux) | (self.ux == 0.0)
-        )
-
-        bad_uy = mask & (
-                np.isnan(self.uy) | np.isinf(self.uy) | (self.uy == 0.0)
-        )
-
+        mask = self.fluid_mask
+        outlet_mask = self.outlet_mask
 
         print(
             step,
+
             "rho mean/min/max",
-            np.nanmean(rho_now[mask]),
-            np.nanmin(rho_now[mask]),
-            np.nanmax(rho_now[mask]),
+            np.mean(self.rho[mask]),
+            np.min(self.rho[mask]),
+            np.max(self.rho[mask]),
 
             "ux mean/min/max",
-            np.nanmean(self.ux[mask]),
-            np.nanmin(self.ux[mask]),
-            np.nanmax(self.ux[mask]),
+            np.mean(self.ux[mask]),
+            np.min(self.ux[mask]),
+            np.max(self.ux[mask]),
 
-            "rho right mean",
-            np.nanmean(rho_now[1:-1, -2]),
+            "rho outlet mean",
+            np.mean(self.rho[outlet_mask]),
 
-            "ux right mean/max",
-            np.nanmean(self.ux[1:-1, -2]),
-            np.nanmax(self.ux[1:-1, -2]),
+            "ux outlet mean/max",
+            np.mean(self.ux[outlet_mask]),
+            np.max(self.ux[outlet_mask]),
         )
+
 
 if __name__ == "__main__":
 
@@ -653,12 +676,12 @@ if __name__ == "__main__":
     )
 
     for step in range(3000):
-        lbm.compute_macroscopic()
+        lbm.compute_macroscopic_cbc()
         lbm.outlet_cbc_right()
-        lbm.collide_fluid_skip_right()
-        lbm.stream2()
+        lbm.collide_cbc()
+        lbm.stream()
 
-        lbm.inlet_zou_he_velocity(step, 200)
+        lbm.inlet_zou_he_velocity_left(step, 200)
         # lbm.outlet_copy()
         # lbm.outlet_zou_he_pressure(rho_out=1.0)
         # lbm.outlet_anti_bounce_back_pressure(rho_out=1.0)

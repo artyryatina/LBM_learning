@@ -77,9 +77,9 @@ class LBM:
         self.f = None
         self.initialize_distribution()
 
-        self.cbc_rho_right = np.ones(self.Ny)
-        self.cbc_ux_right = np.zeros(self.Ny)
-        self.cbc_uy_right = np.zeros(self.Ny)
+        self.cbc_rho_right = np.ones(self.Ny - 2)
+        self.cbc_ux_right = np.zeros(self.Ny - 2)
+        self.cbc_uy_right = np.zeros(self.Ny - 2)
 
         cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("LBM", 1200, 400)
@@ -203,9 +203,9 @@ class LBM:
         self.ux[mask] = np.sum(self.f[mask] * self.e[:, 0], axis=1) / rho
         self.uy[mask] = np.sum(self.f[mask] * self.e[:, 1], axis=1) / rho
 
-        self.rho[self.outlet_mask] = self.cbc_rho_right[1:-1]
-        self.ux[self.outlet_mask] = self.cbc_ux_right[1:-1]
-        self.uy[self.outlet_mask] = self.cbc_uy_right[1:-1]
+        self.rho[self.outlet_mask] = self.cbc_rho_right
+        self.ux[self.outlet_mask] = self.cbc_ux_right
+        self.uy[self.outlet_mask] = self.cbc_uy_right
 
     def collide(self):
         """
@@ -447,10 +447,8 @@ class LBM:
         5) зберігаємо його для наступного кроку
         """
 
-        x = self.Nx - 1
-
-        # тільки fluid-вузли, без верхньої/нижньої стінки
-        y = slice(1, -1)
+        outlet_mask = self.outlet_mask
+        y_mask = self.outlet_mask[:, -1]
 
         cs = 1.0 / np.sqrt(3.0)
         dt = 1.0
@@ -460,9 +458,9 @@ class LBM:
         # 1. Беремо m(t), яке CBC зберігає окремо
         # =====================================================
 
-        rho_b = self.cbc_rho_right[y].copy()
-        ux_b = self.cbc_ux_right[y].copy()
-        uy_b = self.cbc_uy_right[y].copy()
+        rho_b = self.cbc_rho_right.copy()
+        ux_b = self.cbc_ux_right.copy()
+        uy_b = self.cbc_uy_right.copy()
 
         # safety clamp
         rho_b = np.maximum(rho_b, 1e-8)
@@ -476,7 +474,7 @@ class LBM:
         for i in range(9):
             eu = self.e[i, 0] * ux_b + self.e[i, 1] * uy_b
 
-            self.f[y, x, i] = self.w[i] * rho_b * (
+            self.f[outlet_mask, i] = self.w[i] * rho_b * (
                     1
                     + 3.0 * eu
                     + 4.5 * eu ** 2
@@ -489,14 +487,14 @@ class LBM:
         #    df/dx = (3f_b - 4f_{-1} + f_{-2}) / (2dx)
         # =====================================================
 
-        rho_1 = self.rho[y, x - 1]
-        rho_2 = self.rho[y, x - 2]
+        rho_1 = self.rho[y_mask, -2]
+        rho_2 = self.rho[y_mask, -3]
 
-        ux_1 = self.ux[y, x - 1]
-        ux_2 = self.ux[y, x - 2]
+        ux_1 = self.ux[y_mask, -2]
+        ux_2 = self.ux[y_mask, -3]
 
-        uy_1 = self.uy[y, x - 1]
-        uy_2 = self.uy[y, x - 2]
+        uy_1 = self.uy[y_mask, -2]
+        uy_2 = self.uy[y_mask, -3]
 
         drho_dx = (3.0 * rho_b - 4.0 * rho_1 + rho_2) / (2.0 * dx)
         dux_dx = (3.0 * ux_b - 4.0 * ux_1 + ux_2) / (2.0 * dx)
@@ -550,9 +548,9 @@ class LBM:
         uy_next = np.clip(uy_next, -0.2, 0.2)
 
         # зберігаємо для наступного кроку
-        self.cbc_rho_right[y] = rho_next
-        self.cbc_ux_right[y] = ux_next
-        self.cbc_uy_right[y] = uy_next
+        self.cbc_rho_right = rho_next
+        self.cbc_ux_right = ux_next
+        self.cbc_uy_right = uy_next
 
     def visualize_velocity(self):
         speed = np.sqrt(self.ux ** 2 + self.uy ** 2)

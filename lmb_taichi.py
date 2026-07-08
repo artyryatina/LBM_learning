@@ -104,12 +104,9 @@ class LBM:
         self.cbc_ux_right = ti.field(dtype=ti.f32, shape=self.Ny - 2)
         self.cbc_uy_right = ti.field(dtype=ti.f32, shape=self.Ny - 2)
 
-        for y in self.cbc_rho_right:
-            self.cbc_rho_right[y] = 1.0
-            self.cbc_ux_right[y] = 0.0
-            self.cbc_uy_right[y] = 0.0
-
-        self.initialize_cbc()
+        self.cbc_rho_right.fill(1.0)
+        self.cbc_ux_right.fill(0.0)
+        self.cbc_uy_right.fill(0.0)
 
         # =====================================================
         # VISUALIZATION
@@ -129,8 +126,7 @@ class LBM:
         # SOLID
         # =====================================================
 
-        for y, x in self.solid_mask:
-            self.solid_mask[y, x] = 0
+        self.solid_mask.fill(0.0)
 
         # walls
         for x in range(self.Nx):
@@ -157,8 +153,7 @@ class LBM:
         # INLET
         # =====================================================
 
-        for y, x in self.inlet_mask:
-            self.inlet_mask[y, x] = 0
+        self.inlet_mask.fill(0.0)
 
         for y in range(1, self.Ny - 1):
             self.inlet_mask[y, 0] = 1
@@ -167,8 +162,8 @@ class LBM:
         # OUTLET
         # =====================================================
 
-        for y, x in self.outlet_mask:
-            self.outlet_mask[y, x] = 0
+
+        self.outlet_mask.fill(0.0)
 
         for y in range(1, self.Ny - 1):
             self.outlet_mask[y, self.Nx - 1] = 1
@@ -189,20 +184,24 @@ class LBM:
         # INITIAL MACROSCOPIC FIELDS
         # =====================================================
 
-        for y, x in self.rho:
-            self.rho[y, x] = 1.0
-            self.ux[y, x] = 0.0
-            self.uy[y, x] = 0.0
+        self.rho.fill(1.0)
+        self.ux.fill(0.0)
+        self.uy.fill(0.0)
 
-            # # self.ux[self.fluid_mask] = self.v_char
-            # if self.fluid_mask[y, x] == 1:
-            #     # self.ux[y, x] = self.v_char
-            #     pass
-            #
-            # # self.ux[self.inlet_mask] = self.v_char
-            # if self.inlet_mask[y, x] == 1:
-            #     # self.ux[y, x] = self.v_char
-            #     pass
+        # for y, x in self.rho:
+        #     self.rho[y, x] = 1.0
+        #     self.ux[y, x] = 0.0
+        #     self.uy[y, x] = 0.0
+        #
+        #     # self.ux[self.fluid_mask] = self.v_char
+        #     if self.fluid_mask[y, x] == 1:
+        #         # self.ux[y, x] = self.v_char
+        #         pass
+        #
+        #     # self.ux[self.inlet_mask] = self.v_char
+        #     if self.inlet_mask[y, x] == 1:
+        #         # self.ux[y, x] = self.v_char
+        #         pass
 
     @ti.kernel
     def initialize_distribution(self):
@@ -224,13 +223,6 @@ class LBM:
                         + 4.5 * eu ** 2
                         - 1.5 * u2
                 )
-
-    @ti.kernel
-    def initialize_cbc(self):
-        for y in self.cbc_rho_right:
-            self.cbc_rho_right[y] = 1.0
-            self.cbc_ux_right[y] = 0.0
-            self.cbc_uy_right[y] = 0.0
 
     def mouse_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_MOUSEMOVE:

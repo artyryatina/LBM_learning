@@ -193,9 +193,9 @@ class LBM:
     def compute_macroscopic_cbc(self):
         mask = self.cbc_fluid_mask
 
-        self.rho[:, :] = 1.0
-        self.ux[:, :] = 0.0
-        self.uy[:, :] = 0.0
+        # self.rho[:, :] = 1.0
+        # self.ux[:, :] = 0.0
+        # self.uy[:, :] = 0.0
 
         rho = np.sum(self.f[mask], axis=1)
 
@@ -673,7 +673,7 @@ if __name__ == "__main__":
         Re=70,
     )
 
-    for step in range(3000):
+    for step in range(700):
         lbm.compute_macroscopic_cbc()
         lbm.outlet_cbc_right()
         lbm.collide_cbc()

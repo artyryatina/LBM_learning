@@ -333,14 +333,14 @@ class LBM:
                 # uy_1 = self.uy[y, x - 1]
                 # uy_2 = self.uy[y, x - 2]
 
-                rho_1 = self.rho[y, -2]
-                rho_2 = self.rho[y, -3]
+                rho_1 = self.rho[y, self.Nx - 2]
+                rho_2 = self.rho[y, self.Nx - 3]
 
-                ux_1 = self.ux[y, -2]
-                ux_2 = self.ux[y, -3]
+                ux_1 = self.ux[y, self.Nx - 2]
+                ux_2 = self.ux[y, self.Nx - 3]
 
-                uy_1 = self.uy[y, -2]
-                uy_2 = self.uy[y, -3]
+                uy_1 = self.uy[y, self.Nx - 2]
+                uy_2 = self.uy[y, self.Nx - 3]
 
                 drho_dx = (3.0 * rho_b - 4.0 * rho_1 + rho_2) / (2.0 * dx)
                 dux_dx = (3.0 * ux_b - 4.0 * ux_1 + ux_2) / (2.0 * dx)

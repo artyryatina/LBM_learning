@@ -637,7 +637,7 @@ if __name__ == "__main__":
         lbm.outlet_cbc_right()
         lbm.collide_cbc()
 
-        lbm.f_temp.fill(float("nan"))
+
         lbm.stream()
 
         lbm.inlet_zou_he_velocity_left(step, 200)

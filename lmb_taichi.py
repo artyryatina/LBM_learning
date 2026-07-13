@@ -551,6 +551,7 @@ class LBM:
         )
 
         cv2.imshow("LBM", img)
+        cv2.waitKey(1)
 
     def visualize_density(self):
         field = self.rho.to_numpy()
@@ -584,6 +585,7 @@ class LBM:
         )
 
         cv2.imshow("LBM", img)
+        cv2.waitKey(1)
 
     def print_stats(self, step):
         rho = self.rho.to_numpy()

@@ -582,6 +582,7 @@ class LBM:
         )
 
         cv2.imshow("LBM", img)
+        cv2.waitKey(1)
 
     def visualize_density(self):
         field = self.rho.copy()
@@ -613,6 +614,7 @@ class LBM:
         )
 
         cv2.imshow("LBM", img)
+        cv2.waitKey(1)
 
     def should_stop(self):
         if cv2.waitKey(1) & 0xFF == ord('q'):

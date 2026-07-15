@@ -8,7 +8,7 @@ ti.init(
 )
 
 @ti.data_oriented
-class LBM:
+class LBMTaichi:
     def __init__(
             self,
             Nx,
@@ -115,13 +115,13 @@ class LBM:
         # VISUALIZATION
         # =====================================================
 
-        cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("LBM", 1200, 400)
+        cv2.namedWindow("LBMTaichi", cv2.WINDOW_NORMAL)
+        cv2.resizeWindow("LBMTaichi", 1200, 400)
 
         self.mouse_x = 0
         self.mouse_y = 0
 
-        cv2.setMouseCallback("LBM", self.mouse_callback)
+        cv2.setMouseCallback("LBMTaichi", self.mouse_callback)
 
     @ti.kernel
     def initialize_masks(self):
@@ -550,7 +550,7 @@ class LBM:
             1
         )
 
-        cv2.imshow("LBM", img)
+        cv2.imshow("LBMTaichi", img)
         cv2.waitKey(1)
 
     def visualize_density(self):
@@ -584,7 +584,7 @@ class LBM:
             1
         )
 
-        cv2.imshow("LBM", img)
+        cv2.imshow("LBMTaichi", img)
         cv2.waitKey(1)
 
     def print_stats(self, step):
@@ -619,7 +619,7 @@ class LBM:
         if cv2.waitKey(1) & 0xFF == ord('q'):
             return True
 
-        if cv2.getWindowProperty("LBM", cv2.WND_PROP_VISIBLE) < 1:
+        if cv2.getWindowProperty("LBMTaichi", cv2.WND_PROP_VISIBLE) < 1:
             return True
 
         return False
@@ -637,7 +637,7 @@ if __name__ == "__main__":
         default_fp=ti.f64,
     )
 
-    lbm = LBM(
+    lbm = LBMTaichi(
         Nx=1600,
         Ny=480,
         v_char=0.05,

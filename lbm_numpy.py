@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 
-class LBM:
+class LBMNumPy:
     def __init__(
             self,
             Nx,
@@ -81,13 +81,13 @@ class LBM:
         self.cbc_ux_right = np.zeros(self.Ny - 2)
         self.cbc_uy_right = np.zeros(self.Ny - 2)
 
-        cv2.namedWindow("LBM", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("LBM", 1200, 400)
+        cv2.namedWindow("LBMNumPy", cv2.WINDOW_NORMAL)
+        cv2.resizeWindow("LBMNumPy", 1200, 400)
 
         self.mouse_x = 0
         self.mouse_y = 0
 
-        cv2.setMouseCallback("LBM", self.mouse_callback)
+        cv2.setMouseCallback("LBMNumPy", self.mouse_callback)
 
     def initialize_masks(self):
         # =====================================================
@@ -581,7 +581,7 @@ class LBM:
             1
         )
 
-        cv2.imshow("LBM", img)
+        cv2.imshow("LBMNumPy", img)
         cv2.waitKey(1)
 
     def visualize_density(self):
@@ -613,14 +613,14 @@ class LBM:
             1
         )
 
-        cv2.imshow("LBM", img)
+        cv2.imshow("LBMNumPy", img)
         cv2.waitKey(1)
 
     def should_stop(self):
         if cv2.waitKey(1) & 0xFF == ord('q'):
             return True
 
-        if cv2.getWindowProperty("LBM", cv2.WND_PROP_VISIBLE) < 1:
+        if cv2.getWindowProperty("LBMNumPy", cv2.WND_PROP_VISIBLE) < 1:
             return True
 
         return False
@@ -673,7 +673,7 @@ if __name__ == "__main__":
 
     init_start = time.perf_counter()
 
-    lbm = LBM(
+    lbm = LBMNumPy(
         Nx=1600,
         Ny=480,
         v_char=0.05,

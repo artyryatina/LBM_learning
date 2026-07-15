@@ -626,15 +626,29 @@ class LBM:
 
 
 if __name__ == "__main__":
+    import time
+
+    steps = 500
+
+    init_start = time.perf_counter()
+
+    ti.init(
+        arch=ti.gpu,
+        default_fp=ti.f64,
+    )
 
     lbm = LBM(
-        Nx=200,
-        Ny=60,
+        Nx=1600,
+        Ny=480,
         v_char=0.05,
         Re=70,
     )
 
-    for step in range(700):
+    init_time = time.perf_counter() - init_start
+
+    loop_start = time.perf_counter()
+
+    for step in range(steps):
         lbm.compute_macroscopic_cbc()
         lbm.outlet_cbc_right()
         lbm.collide_cbc()
@@ -654,10 +668,18 @@ if __name__ == "__main__":
         lbm.visualize_velocity()
         # lbm.visualize_density()
 
-        if step % 50 == 0:
-            lbm.print_stats(step)
+        # if step % 50 == 0:
+        #     lbm.print_stats(step)
+        #
+        # if lbm.should_stop():
+        #     break
 
-        if lbm.should_stop():
-            break
+    ti.sync()
+
+    loop_time = time.perf_counter() - loop_start
+
+    print(f"Initialization: {init_time:.6f} s")
+    print(f"Simulation: {loop_time:.6f} s")
+    print(f"Per step: {loop_time / steps:.6f} s")
 
     cv2.destroyAllWindows()

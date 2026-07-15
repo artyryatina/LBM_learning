@@ -554,12 +554,12 @@ class LBMNumPy:
 
     def visualize_velocity(self):
         speed = np.sqrt(self.ux ** 2 + self.uy ** 2)
-        speed[self.solid_mask] = 0.0
 
-        img = speed / (2.0 * self.v_char)
+        img = speed / (4.0 * self.v_char)
         img = np.clip(img, 0, 1)
         img = (255 * img).astype(np.uint8)
         img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+        img[self.solid_mask] = (0, 0, 0)
 
         grid_x = int(self.mouse_x - 1)
         grid_y = int(self.mouse_y - 1)
@@ -586,12 +586,12 @@ class LBMNumPy:
 
     def visualize_density(self):
         field = self.rho.copy()
-        field[self.solid_mask] = 1.0
 
         img = (field - 0.95) / (1.10 - 0.95)
         img = np.clip(img, 0, 1)
         img = (255 * img).astype(np.uint8)
         img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+        img[self.solid_mask] = (0, 0, 0)
 
         grid_x = int(self.mouse_x - 1)
         grid_y = int(self.mouse_y - 1)

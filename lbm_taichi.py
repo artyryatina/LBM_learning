@@ -140,6 +140,53 @@ class LBMTaichi:
             if (x - cx) ** 2 + (y - cy) ** 2 <= radius ** 2:
                 self.solid_mask[y, x] = 1
 
+        if (False):
+            # =====================================================
+            # CIRCLE OBSTACLES
+            # =====================================================
+
+            radius = 6
+
+            cx1 = self.Nx // 3
+            cy1 = self.Ny // 2
+
+            cx2 = self.Nx // 2
+            cy2 = self.Ny // 3
+
+            cx3 = 2 * self.Nx // 3
+            cy3 = 2 * self.Ny // 3
+
+            for y, x in self.solid_mask:
+                circle_1 = (x - cx1) ** 2 + (y - cy1) ** 2 <= radius ** 2
+                circle_2 = (x - cx2) ** 2 + (y - cy2) ** 2 <= radius ** 2
+                circle_3 = (x - cx3) ** 2 + (y - cy3) ** 2 <= radius ** 2
+
+                if circle_1 or circle_2 or circle_3:
+                    self.solid_mask[y, x] = 1
+
+            # =====================================================
+            # INCLINED WALL
+            # =====================================================
+
+            x_start = self.Nx // 4
+            x_end = self.Nx // 2
+
+            y_start = self.Ny
+            y_end = self.Ny // 2
+
+            thickness = 3
+
+            for y, x in self.solid_mask:
+                if x_start <= x <= x_end:
+                    wall_y = (
+                            y_start
+                            + (y_end - y_start) * (x - x_start)
+                            // (x_end - x_start)
+                    )
+
+                    if ti.abs(y - wall_y) <= thickness:
+                        self.solid_mask[y, x] = 1
+
         # =====================================================
         # FLUID
         # =====================================================
@@ -518,12 +565,12 @@ class LBMTaichi:
         solid_mask = self.solid_mask.to_numpy().astype(bool)
 
         speed = np.sqrt(ux ** 2 + uy ** 2)
-        speed[solid_mask] = 0.0
 
-        img = speed / (2.0 * self.v_char)
+        img = speed / (4.0 * self.v_char)
         img = np.clip(img, 0, 1)
         img = (255 * img).astype(np.uint8)
         img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+        img[solid_mask] = (0, 0, 0)
 
         grid_x = int(self.mouse_x - 1)
         grid_y = int(self.mouse_y - 1)
@@ -552,12 +599,11 @@ class LBMTaichi:
         field = self.rho.to_numpy()
         solid_mask = self.solid_mask.to_numpy().astype(bool)
 
-        field[solid_mask] = 1.0
-
         img = (field - 0.95) / (1.10 - 0.95)
         img = np.clip(img, 0, 1)
         img = (255 * img).astype(np.uint8)
         img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+        img[solid_mask] = (0, 0, 0)
 
         grid_x = int(self.mouse_x - 1)
         grid_y = int(self.mouse_y - 1)

@@ -28,8 +28,8 @@ class LBMNumPy:
         self.steps = 30000
         self.ramp_steps = 200
 
-        print("viscosity =", self.viscosity)
-        print("tau =", self.tau)
+        # print("viscosity =", self.viscosity)
+        # print("tau =", self.tau)
 
         # =========================================================
         # D2Q9 LATTICE
